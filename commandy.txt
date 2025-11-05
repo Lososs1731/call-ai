@@ -1,0 +1,5 @@
+python -c "import sqlite3; conn=sqlite3.connect('data/calls.db'); conn.execute('DELETE FROM contacts'); conn.commit(); print('✓ Kontakty smazány')"
+
+python -m cli.run_campaign
+
+https://unretrievable-lashed-lina.ngrok-free.dev

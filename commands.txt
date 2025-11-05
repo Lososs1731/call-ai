@@ -1,0 +1,6 @@
+python run.py
+
+python -m cli.run_cold_call_campaign
+
+python -c "import sqlite3; conn=sqlite3.connect('data/calls.db'); conn.execute('DELETE FROM calls'); conn.execute('UPDATE contacts SET status=\"new\", call_count=0'); conn.commit(); print('✓ Reset hotovo')"
+
