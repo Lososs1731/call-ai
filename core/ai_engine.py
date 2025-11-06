@@ -1,6 +1,6 @@
 """
 ChatGPT integrace
-Spravuje konverzaci s AI modelem
+OPTIMALIZOVÁNO: Rychlejší odpovědi, timeout
 """
 
 from openai import OpenAI
@@ -11,7 +11,10 @@ class AIEngine:
     """Engine pro komunikaci s ChatGPT"""
     
     def __init__(self):
-        self.client = OpenAI(api_key=Config.OPENAI_API_KEY)
+        self.client = OpenAI(
+            api_key=Config.OPENAI_API_KEY,
+            timeout=5.0  # ✅ NOVÉ: 5s timeout (standardně 60s!)
+        )
         self.conversations = {}
     
     def start_conversation(self, session_id, system_prompt):
@@ -29,6 +32,7 @@ class AIEngine:
     def get_response(self, session_id, user_message):
         """
         Ziska odpoved od AI
+        OPTIMALIZOVÁNO: Rychlejší s timeout
         
         Args:
             session_id: ID konverzace
@@ -46,15 +50,23 @@ class AIEngine:
             "content": user_message
         })
         
-        # Volani API
-        response = self.client.chat.completions.create(
-            model=Config.OPENAI_MODEL,
-            messages=self.conversations[session_id],
-            temperature=Config.TEMPERATURE,
-            max_tokens=Config.MAX_TOKENS
-        )
-        
-        ai_message = response.choices[0].message.content.strip()
+        # ⚡ OPTIMALIZOVANÉ VOLÁNÍ API
+        try:
+            response = self.client.chat.completions.create(
+                model=Config.OPENAI_MODEL,
+                messages=self.conversations[session_id],
+                temperature=Config.TEMPERATURE,
+                max_tokens=Config.MAX_TOKENS,
+                timeout=5.0,  # ✅ NOVÉ: 5s timeout
+                stream=False  # ✅ NOVÉ: vypnuto streaming (rychlejší pro krátké odpovědi)
+            )
+            
+            ai_message = response.choices[0].message.content.strip()
+            
+        except Exception as e:
+            print(f"⚠️  OpenAI timeout/error: {e}")
+            # Fallback odpověď
+            ai_message = "Promiňte, momentálně mám technické potíže. Můžete to zkusit znovu?"
         
         # Oriznutie prilis dlouhych odpovedi
         if len(ai_message) > 200:

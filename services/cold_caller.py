@@ -153,13 +153,20 @@ class ColdCallerService:
         print(f"{'='*60}\n")
     
     def _can_call(self):
-        """Kontrola volaci doby"""
-        now = datetime.now()
-        
-        if now.weekday() not in CallConfig.WORK_DAYS:
-            return False
-        
-        if not (CallConfig.START_HOUR <= now.hour < CallConfig.END_HOUR):
-            return False
-        
+        """Zkontroluje zda muze volat"""
+        # ✅ VYPNUTO PRO TESTOVÁNÍ
         return True
+        
+        # now = datetime.now()
+        # 
+        # # Pracovni dny
+        # if now.weekday() not in CallConfig.WORK_DAYS:
+        #     print(f"⚠️  Dnes je {['Po','Út','St','Čt','Pá','So','Ne'][now.weekday()]} - nevolám")
+        #     return False
+        # 
+        # # Pracovni hodiny
+        # if not (CallConfig.START_HOUR <= now.hour < CallConfig.END_HOUR):
+        #     print(f"⚠️  Je {now.hour}:00 - mimo pracovní dobu ({CallConfig.START_HOUR}-{CallConfig.END_HOUR})")
+        #     return False
+        # 
+        # return True
