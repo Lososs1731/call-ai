@@ -8,7 +8,7 @@ from twilio.twiml.voice_response import VoiceResponse, Gather
 import os
 
 from core import TTSEngine
-from services import AIReceptionist
+from services import ReceptionistService
 from config import Prompts, Config
 
 app = Flask(__name__, static_folder='../static', static_url_path='/static')
@@ -80,52 +80,87 @@ def inbound_call():
     response.redirect('/process?call_time=0')
     
     return Response(str(response), mimetype='text/xml')
-
-
 @app.route("/outbound", methods=['POST'])
 def outbound_call():
-    """Odchozi hovory - OPRAVENO: český greeting, barge-in"""
+    """Odchozi hovory - S KNOWLEDGE BASE SUPPORT"""
     call_sid = request.values.get('CallSid')
     name = request.values.get('name', 'pane')
     company = request.values.get('company', '')
     product_id = request.values.get('product_id', 1)
     campaign = request.values.get('campaign', 'default')
+    use_kb = request.values.get('use_kb', 'true').lower() == 'true'  # 🔥 NOVÉ!
     
     print(f"\n{'='*50}")
     print(f"📞 ODCHOZI HOVOR")
     print(f"Kontakt: {name}")
     print(f"Firma: {company}")
     print(f"Kampaň: {campaign}")
+    print(f"Use KB: {'✅ ANO' if use_kb else '❌ NE'}")  # 🔥 NOVÉ!
     print(f"CallSid: {call_sid}")
     print(f"{'='*50}")
     
-    from database import CallDB
-    db = CallDB()
-    product = db.get_product_by_name("Tvorba webů na míru")
+    # ============================================================
+    # 🔥 KNOWLEDGE BASE MODE
+    # ============================================================
     
-    # ✅ ČESKÝ POZDRAV (ne "Halo?")
-    greeting = f"Dobrý den, {name}. Tady Pavel z Lososs."
+    if use_kb:
+        print(f"  🔥 Spouštím KNOWLEDGE BASE Cold Caller")
+        
+        from services.cold_caller_kb import ColdCallerKB
+        
+        # Vytvoř KB caller instance
+        kb_caller = ColdCallerKB()
+        
+        # Získej opening z databáze
+        greeting = kb_caller.handle_outbound_call(call_sid, name, company)
+        
+        # Ulož instance pro /process endpoint
+        if 'kb_callers' not in app.config:
+            app.config['kb_callers'] = {}
+        
+        app.config['kb_callers'][call_sid] = kb_caller
+        
+        print(f"  ✅ KB Caller aktivní pro {call_sid}")
+    
+    # ============================================================
+    # ❌ PŮVODNÍ MODE (fallback)
+    # ============================================================
+    
+    else:
+        print(f"  🤖 Spouštím ORIGINAL Cold Caller")
+        
+        from database import CallDB
+        db = CallDB()
+        product = db.get_product_by_name("Tvorba webů na míru")
+        
+        # Český pozdrav
+        greeting = f"Dobrý den, {name}. Tady Pavel z Lososs."
+        
+        # AUTO-LEARNING PROMPT (pokud existuje)
+        try:
+            from services.learning_system import LearningSystem
+            learner = LearningSystem()
+            sales_prompt = learner.get_optimized_prompt(product, name)
+            print(f"  🧠 Použit LEARNED prompt!")
+        except Exception as e:
+            print(f"  ⚠️  Learning nedostupný: {e}")
+            from config import Prompts
+            sales_prompt = Prompts.get_sales_prompt(product, name)
+        
+        # Zahaj AI konverzaci
+        receptionist.ai.start_conversation(call_sid, sales_prompt)
+        
+        # Přidej greeting do konverzace
+        receptionist.ai.conversations[call_sid].append({
+            'role': 'assistant',
+            'content': greeting
+        })
+    
+    # ============================================================
+    # SPOLEČNÝ KÓD (TTS + TwiML)
+    # ============================================================
     
     print(f"  📝 Greeting: '{greeting}'")
-    
-    # AUTO-LEARNING PROMPT
-    try:
-        from services.learning_system import LearningSystem
-        learner = LearningSystem()
-        sales_prompt = learner.get_optimized_prompt(product, name)
-        print(f"  🧠 Použit LEARNED prompt!")
-    except Exception as e:
-        print(f"  ⚠️  Learning nedostupný: {e}")
-        sales_prompt = Prompts.get_sales_prompt(product, name)
-    
-    # Zahaj AI konverzaci
-    receptionist.ai.start_conversation(call_sid, sales_prompt)
-    
-    # Přidej greeting do konverzace
-    receptionist.ai.conversations[call_sid].append({
-        'role': 'assistant',
-        'content': greeting
-    })
     
     response = VoiceResponse()
     
@@ -146,8 +181,8 @@ def outbound_call():
             input='speech',
             action='/process?call_time=0',
             language='cs-CZ',
-            speech_timeout='1',  # ✅ ZMĚNĚNO z 'auto'
-            timeout=10,  # ✅ ZKRÁCENO z 15
+            speech_timeout='1',
+            timeout=10,
             speech_model='phone_call',
             barge_in=True,
             actionOnEmptyResult=True,
@@ -156,7 +191,7 @@ def outbound_call():
             hints='dobrý den, ahoj, ano, ne, web, děkuji, moment, stop, zájem, email, halo, slyšíme se'
         )
         
-        gather.play(audio_url)  # ✅ PLAY UVNITŘ GATHER
+        gather.play(audio_url)
         response.append(gather)
         response.redirect('/process?call_time=0')
         
@@ -213,7 +248,6 @@ def process_speech():
         response.hangup()
         return Response(str(response), mimetype='text/xml')
     
-    # ⭐ DETEKCE ODMÍTNUTÍ - ROZŠÍŘENO
     # ⭐ DETEKCE ODMÍTNUTÍ - POUZE TVRDÁ ODMÍTNUTÍ!
     hard_rejection_keywords = [
         'nemám zájem a nebudu', 'nevolejte', 'smažte', 'přestaňte',
@@ -239,13 +273,12 @@ def process_speech():
     is_opportunity = any(phrase in user_input_lower for phrase in opportunities)
     if is_opportunity:
         print(f"  🎯 PŘÍLEŽITOST detekována - pokračuji agresivně!")
-        # Pokračuj normálně s AI - není to odmítnutí!
         is_rejection = False
 
     # 2. Soft rejection = jen poznámka, ale pokračuj
     elif any(phrase in user_input_lower for phrase in soft_rejection):
         print(f"  ⚠️  SOFT odmítnutí - zkusím obejít!")
-        is_rejection = False  # Nech AI to vyřešit!
+        is_rejection = False
 
     # 3. Jen HARD rejection = skutečně zavěs
     else:
@@ -303,7 +336,7 @@ def process_speech():
             input='speech',
             action=f'/process?retry={retry_count + 1}&call_time={call_time + 8}',
             language='cs-CZ',
-            speech_timeout='1',  # ✅ ZMĚNĚNO z 'auto'
+            speech_timeout='1',
             timeout=8,
             speech_model='phone_call',
             barge_in=True,
@@ -342,7 +375,7 @@ def process_speech():
             input='speech',
             action=f'/process?retry={retry_count + 1}&call_time={call_time + 8}',
             language='cs-CZ',
-            speech_timeout='1',  # ✅ ZMĚNĚNO
+            speech_timeout='1',
             timeout=8,
             speech_model='phone_call',
             barge_in=True,
@@ -364,7 +397,21 @@ def process_speech():
     print(f"  🤖 Zpracovávám AI odpověď...")
     
     try:
-        ai_reply = receptionist.process_message(call_sid, user_input)
+        # ============================================================
+        # 🔥 KNOWLEDGE BASE CHECK - TADY!
+        # ============================================================
+        
+        kb_callers = app.config.get('kb_callers', {})
+        
+        if call_sid in kb_callers:
+            # ✅ POUŽIJ KNOWLEDGE BASE
+            print(f"  🔥 Používám Knowledge Base")
+            kb_caller = kb_callers[call_sid]
+            ai_reply = kb_caller.process_customer_response(call_sid, user_input)
+        else:
+            # ✅ PŮVODNÍ ZPŮSOB
+            print(f"  🤖 Používám standard AI")
+            ai_reply = receptionist.process_message(call_sid, user_input)
         
         print(f"  AI: {ai_reply[:100]}...")
         
@@ -409,6 +456,10 @@ def process_speech():
             except:
                 pass
             
+            # ✅ CLEANUP KB caller pokud existuje
+            if call_sid in kb_callers:
+                del kb_callers[call_sid]
+            
             return Response(str(response), mimetype='text/xml')
         
         # ✅ NORMÁLNÍ ODPOVĚĎ S GATHER
@@ -418,8 +469,8 @@ def process_speech():
             input='speech',
             action=f'/process?retry=0&call_time={new_call_time}',
             language='cs-CZ',
-            speech_timeout='1',  # ✅ ZMĚNĚNO z 'auto'
-            timeout=8,  # ✅ ZKRÁCENO z 15
+            speech_timeout='1',
+            timeout=8,
             speech_model='phone_call',
             barge_in=True,
             actionOnEmptyResult=True,
