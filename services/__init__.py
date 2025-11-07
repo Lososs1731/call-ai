@@ -1,8 +1,17 @@
 """
-Business logika
+Services Package
 """
 
-from .receptionist import ReceptionistService
-from .cold_caller import ColdCallerService
+from .receptionist import AIReceptionist
+from .topic_controller import TopicController
+from .response_selector import ResponseSelector
 
-__all__ = ['ReceptionistService', 'ColdCallerService']
+# Backward compatibility alias
+ReceptionistService = AIReceptionist
+
+__all__ = [
+    'AIReceptionist',
+    'ReceptionistService',  # Starý název pro kompatibilitu
+    'TopicController',
+    'ResponseSelector'
+]

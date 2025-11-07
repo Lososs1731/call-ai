@@ -8,7 +8,7 @@ from twilio.twiml.voice_response import VoiceResponse, Gather
 import os
 
 from core import TTSEngine
-from services import ReceptionistService
+from services import AIReceptionist
 from config import Prompts, Config
 
 app = Flask(__name__, static_folder='../static', static_url_path='/static')
