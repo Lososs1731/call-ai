@@ -1,2 +1,4 @@
 .env
 stara_verze/.env
+__pycache__/
+*.pyc
