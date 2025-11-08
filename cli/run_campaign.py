@@ -1,6 +1,5 @@
 """
 Spusteni cold calling kampane z prikazove radky
-NOVĚ: S podporou Knowledge Base
 
 Pouziti:
     python -m cli.run_campaign
@@ -18,31 +17,6 @@ def main():
     
     # Inicializace DB
     db = CallDB()
-    
-    # ============================================================
-    # 🔥 NOVÉ: Výběr režimu (KB vs Original)
-    # ============================================================
-    
-    print("\n" + "=" * 60)
-    print("REŽIM VOLÁNÍ")
-    print("=" * 60)
-    print("1. 🔥 Knowledge Base (doporučeno)")
-    print("   - 54 AI responses z databáze")
-    print("   - Auto-learning (učí se co funguje)")
-    print("   - OFF-TOPIC detection")
-    print("   - Inteligentní výběr podle úspěšnosti")
-    print("\n2. 🤖 Original AI")
-    print("   - Klasický GPT-4 conversation")
-    print("   - Flexibilnější, ale bez učení")
-    
-    mode_choice = input(f"\nVyber režim (1/2, default=1): ").strip() or '1'
-    
-    use_kb = mode_choice == '1'
-    
-    if use_kb:
-        print("\n✅ Použiji Knowledge Base režim")
-    else:
-        print("\n✅ Použiji Original AI režim")
     
     # ============================================================
     # 1. Vyber produktu
@@ -140,7 +114,6 @@ def main():
     print("\n" + "=" * 60)
     print("POTVRZENI")
     print("=" * 60)
-    print(f"Režim: {'🔥 Knowledge Base' if use_kb else '🤖 Original AI'}")
     print(f"Produkt: {selected_product}")
     print(f"Pocet hovoru: {max_calls}")
     print(f"Kontakty: {', '.join([c['name'] for c in contacts[:max_calls]])}")
@@ -171,11 +144,9 @@ def main():
             product_name=selected_product
         )
         
-        # 🔥 PŘIDEJ use_kb parametr
         caller.run_campaign(
             webhook_base_url=ngrok_url,
-            max_calls=max_calls,
-            use_kb=use_kb  # ✅ NOVÉ!
+            max_calls=max_calls
         )
         
     except Exception as e:
@@ -198,41 +169,6 @@ def main():
     print(f"  Prichozi hovory: {stats.get('inbound', 0)}")
     print(f"  Odchozi hovory: {stats.get('outbound', 0)}")
     print(f"  Celkem: {sum(stats.values())}")
-    
-    # 🔥 NOVÉ: KB Statistiky
-    if use_kb:
-        print("\n" + "=" * 60)
-        print("KNOWLEDGE BASE STATISTIKY")
-        print("=" * 60)
-        
-        try:
-            from database.sqlite_connector import get_knowledge_base
-            kb = get_knowledge_base()
-            
-            # Top 5 nejúspěšnějších responses
-            top_responses = kb.cursor.execute("""
-                SELECT 
-                    stage,
-                    sub_category,
-                    response_text,
-                    times_used,
-                    success_rate
-                FROM cold_call_responses
-                WHERE times_used > 0
-                ORDER BY success_rate DESC
-                LIMIT 5
-            """).fetchall()
-            
-            if top_responses:
-                print("\nNejúspěšnější responses:")
-                for i, resp in enumerate(top_responses, 1):
-                    stage, sub, text, used, rate = resp
-                    print(f"\n{i}. [{stage}] {sub}")
-                    print(f"   {text[:60]}...")
-                    print(f"   Použito: {used}x | Úspěšnost: {rate:.1f}%")
-            
-        except Exception as e:
-            print(f"  ⚠️  Nepodařilo se načíst KB stats: {e}")
 
 
 if __name__ == "__main__":
