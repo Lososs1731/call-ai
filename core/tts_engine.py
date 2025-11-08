@@ -37,15 +37,15 @@ class TTSEngine:
             
             # OPTIMALIZACE: Nizsi latence
             audio_gen = self.client.text_to_speech.convert(
-                voice_id=Config.ELEVENLABS_VOICE_ID,
+                voice_id="onwK4e9ZLuTAKqWW03F9",  # ✅ Daniel (Czech male)
                 optimize_streaming_latency="3",  # Zmena z 4 na 3 (rychlejsi)
 
                 text=text,
                 model_id="eleven_turbo_v2_5",  # Turbo je nejrychlejsi
                 voice_settings=VoiceSettings(
-                    stability=0.5,
-                    similarity_boost=0.75,
-                    style=0.0,
+                    stability=0.6,
+                    similarity_boost=0.8,
+                    style=0.2,
                     use_speaker_boost=True,
                 ),
                 

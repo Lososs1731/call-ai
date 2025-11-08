@@ -59,8 +59,8 @@ def inbound_call():
         input='speech',
         action='/process?call_time=0',
         language='cs-CZ',
-        speech_timeout='1',  # ✅ ZMĚNĚNO z 'auto' na '1'
-        timeout=8,  # ✅ ZKRÁCENO z 10
+        speech_timeout='auto',
+        timeout=4,
         speech_model='phone_call',
         barge_in=True,
         actionOnEmptyResult=True,
@@ -82,79 +82,55 @@ def inbound_call():
     return Response(str(response), mimetype='text/xml')
 @app.route("/outbound", methods=['POST'])
 def outbound_call():
-    """Odchozi hovory - S KNOWLEDGE BASE SUPPORT"""
+    """Odchozi hovory - POUZE normální AI (bez KB)"""
     call_sid = request.values.get('CallSid')
     name = request.values.get('name', 'pane')
     company = request.values.get('company', '')
     product_id = request.values.get('product_id', 1)
     campaign = request.values.get('campaign', 'default')
-    use_kb = request.values.get('use_kb', 'true').lower() == 'true'  # 🔥 NOVÉ!
     
     print(f"\n{'='*50}")
     print(f"📞 ODCHOZI HOVOR")
     print(f"Kontakt: {name}")
     print(f"Firma: {company}")
     print(f"Kampaň: {campaign}")
-    print(f"Use KB: {'✅ ANO' if use_kb else '❌ NE'}")  # 🔥 NOVÉ!
     print(f"CallSid: {call_sid}")
     print(f"{'='*50}")
     
     # ============================================================
-    # 🔥 KNOWLEDGE BASE MODE
+    # 🤖 NORMÁLNÍ AI MODE (pure OpenAI GPT)
     # ============================================================
     
-    if use_kb:
-        print(f"  🔥 Spouštím KNOWLEDGE BASE Cold Caller")
-        
-        from services.cold_caller_kb import ColdCallerKB
-        
-        # Vytvoř KB caller instance
-        kb_caller = ColdCallerKB()
-        
-        # Získej opening z databáze
-        greeting = kb_caller.handle_outbound_call(call_sid, name, company)
-        
-        # Ulož instance pro /process endpoint
-        if 'kb_callers' not in app.config:
-            app.config['kb_callers'] = {}
-        
-        app.config['kb_callers'][call_sid] = kb_caller
-        
-        print(f"  ✅ KB Caller aktivní pro {call_sid}")
+    print(f"  🤖 Spouštím NORMAL AI Caller")
     
-    # ============================================================
-    # ❌ PŮVODNÍ MODE (fallback)
-    # ============================================================
+    # Český pozdrav podle problem statement
+    greeting = f"Dobrý den, {name}. Tady Pavel z firmy Lososs. Volám ohledně možné spolupráce na webových stránkách. Máte minutku?"
     
-    else:
-        print(f"  🤖 Spouštím ORIGINAL Cold Caller")
-        
+    # AUTO-LEARNING PROMPT (pokud existuje)
+    try:
+        from services.learning_system import LearningSystem
+        from database import CallDB
+        learner = LearningSystem()
+        db = CallDB()
+        product = db.get_product_by_name("Tvorba webů na míru")
+        sales_prompt = learner.get_optimized_prompt(product, name)
+        print(f"  🧠 Použit LEARNED prompt!")
+    except Exception as e:
+        print(f"  ⚠️  Learning nedostupný: {e}")
+        from config import Prompts
         from database import CallDB
         db = CallDB()
         product = db.get_product_by_name("Tvorba webů na míru")
-        
-        # Český pozdrav
-        greeting = f"Dobrý den, {name}. Tady Pavel z Lososs."
-        
-        # AUTO-LEARNING PROMPT (pokud existuje)
-        try:
-            from services.learning_system import LearningSystem
-            learner = LearningSystem()
-            sales_prompt = learner.get_optimized_prompt(product, name)
-            print(f"  🧠 Použit LEARNED prompt!")
-        except Exception as e:
-            print(f"  ⚠️  Learning nedostupný: {e}")
-            from config import Prompts
-            sales_prompt = Prompts.get_sales_prompt(product, name)
-        
-        # Zahaj AI konverzaci
-        receptionist.ai.start_conversation(call_sid, sales_prompt)
-        
-        # Přidej greeting do konverzace
-        receptionist.ai.conversations[call_sid].append({
-            'role': 'assistant',
-            'content': greeting
-        })
+        sales_prompt = Prompts.get_sales_prompt(product, name)
+    
+    # Zahaj AI konverzaci
+    receptionist.ai.start_conversation(call_sid, sales_prompt)
+    
+    # Přidej greeting do konverzace
+    receptionist.ai.conversations[call_sid].append({
+        'role': 'assistant',
+        'content': greeting
+    })
     
     # ============================================================
     # SPOLEČNÝ KÓD (TTS + TwiML)
@@ -181,8 +157,8 @@ def outbound_call():
             input='speech',
             action='/process?call_time=0',
             language='cs-CZ',
-            speech_timeout='1',
-            timeout=10,
+            speech_timeout='auto',
+            timeout=4,
             speech_model='phone_call',
             barge_in=True,
             actionOnEmptyResult=True,
@@ -334,10 +310,10 @@ def process_speech():
         
         gather = Gather(
             input='speech',
-            action=f'/process?retry={retry_count + 1}&call_time={call_time + 8}',
+            action=f'/process?retry={retry_count + 1}&call_time={call_time + 4}',
             language='cs-CZ',
-            speech_timeout='1',
-            timeout=8,
+            speech_timeout='auto',
+            timeout=4,
             speech_model='phone_call',
             barge_in=True,
             actionOnEmptyResult=True,
@@ -351,7 +327,7 @@ def process_speech():
             gather.say(sorry_msg, language='cs-CZ')
         
         response.append(gather)
-        response.redirect(f'/process?retry={retry_count + 1}&call_time={call_time + 8}')
+        response.redirect(f'/process?retry={retry_count + 1}&call_time={call_time + 4}')
         return Response(str(response), mimetype='text/xml')
     
     # ⭐ PŘÍLIŠ KRÁTKÝ (< 2 znaky)
@@ -373,10 +349,10 @@ def process_speech():
         
         gather = Gather(
             input='speech',
-            action=f'/process?retry={retry_count + 1}&call_time={call_time + 8}',
+            action=f'/process?retry={retry_count + 1}&call_time={call_time + 4}',
             language='cs-CZ',
-            speech_timeout='1',
-            timeout=8,
+            speech_timeout='auto',
+            timeout=4,
             speech_model='phone_call',
             barge_in=True,
             actionOnEmptyResult=True,
@@ -390,28 +366,16 @@ def process_speech():
             gather.say(sorry_msg, language='cs-CZ')
         
         response.append(gather)
-        response.redirect(f'/process?retry={retry_count + 1}&call_time={call_time + 8}')
+        response.redirect(f'/process?retry={retry_count + 1}&call_time={call_time + 4}')
         return Response(str(response), mimetype='text/xml')
     
     # ✅ ZPRACOVÁNÍ AI
     print(f"  🤖 Zpracovávám AI odpověď...")
     
     try:
-        # ============================================================
-        # 🔥 KNOWLEDGE BASE CHECK - TADY!
-        # ============================================================
-        
-        kb_callers = app.config.get('kb_callers', {})
-        
-        if call_sid in kb_callers:
-            # ✅ POUŽIJ KNOWLEDGE BASE
-            print(f"  🔥 Používám Knowledge Base")
-            kb_caller = kb_callers[call_sid]
-            ai_reply = kb_caller.process_customer_response(call_sid, user_input)
-        else:
-            # ✅ PŮVODNÍ ZPŮSOB
-            print(f"  🤖 Používám standard AI")
-            ai_reply = receptionist.process_message(call_sid, user_input)
+        # ✅ VŽDY používej normální AI (bez KB)
+        print(f"  🤖 Používám standard AI")
+        ai_reply = receptionist.process_message(call_sid, user_input)
         
         print(f"  AI: {ai_reply[:100]}...")
         
@@ -456,21 +420,17 @@ def process_speech():
             except:
                 pass
             
-            # ✅ CLEANUP KB caller pokud existuje
-            if call_sid in kb_callers:
-                del kb_callers[call_sid]
-            
             return Response(str(response), mimetype='text/xml')
         
         # ✅ NORMÁLNÍ ODPOVĚĎ S GATHER
-        new_call_time = call_time + 15
+        new_call_time = call_time + 10
         
         gather = Gather(
             input='speech',
             action=f'/process?retry=0&call_time={new_call_time}',
             language='cs-CZ',
-            speech_timeout='1',
-            timeout=8,
+            speech_timeout='auto',
+            timeout=4,
             speech_model='phone_call',
             barge_in=True,
             actionOnEmptyResult=True,
@@ -505,10 +465,10 @@ def process_speech():
         
         gather = Gather(
             input='speech',
-            action=f'/process?retry=0&call_time={call_time + 8}',
+            action=f'/process?retry=0&call_time={call_time + 4}',
             language='cs-CZ',
-            speech_timeout='1',
-            timeout=8,
+            speech_timeout='auto',
+            timeout=4,
             speech_model='phone_call',
             barge_in=True,
             actionOnEmptyResult=True,
@@ -522,7 +482,7 @@ def process_speech():
             gather.say(sorry_msg, language='cs-CZ')
         
         response.append(gather)
-        response.redirect(f'/process?retry=0&call_time={call_time + 8}')
+        response.redirect(f'/process?retry=0&call_time={call_time + 4}')
         
         return Response(str(response), mimetype='text/xml')
 
@@ -647,8 +607,10 @@ if __name__ == "__main__":
     print("  🔊 Barge-in: gather.play() místo response.play()")
     print("  🧠 Reset konverzace při novém hovoru")
     print("  👋 Auto-zavěšení při rozloučení")
-    print("  ⚡ Rychlejší reakce: speech_timeout='1'")
-    print("  ⏱️  Kratší timeout: 8s místo 15s")
+    print("  ⚡ Rychlejší reakce: speech_timeout='auto'")
+    print("  ⏱️  Kratší timeout: 4s místo 8s")
+    print("  🎯 Odstraněn KB caller - čistý OpenAI GPT")
+    print("  🗣️  Czech TTS voice (Daniel)")
     print("=" * 60)
     
     app.run(

@@ -23,6 +23,20 @@ class TopicController:
             (is_on_topic: bool, redirect_response: Optional[str])
         """
         
+        # ✅ Tyto fráze NEJSOU off-topic! (základní konverzační odpovědi)
+        context_responses = [
+            'slyšíme se', 'haló', 'halo', 'neslyším', 'ano slyším',
+            'jo slyším', 'slyším vás', 'dobrý den', 'ahoj', 'prosím',
+            'ano', 'jo', 'ne', 'moment', 'pardon'
+        ]
+        
+        # Pokud je to jen krátká kontextová odpověď
+        text_lower = customer_text.lower().strip()
+        if len(text_lower) < 30:
+            if any(phrase in text_lower for phrase in context_responses):
+                self.off_topic_count = 0
+                return True, None
+        
         # Zkontroluj jestli text je ON-TOPIC
         is_on_topic, matched_topic = self.kb.is_on_topic(customer_text)
         

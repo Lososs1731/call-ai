@@ -1,5 +1,5 @@
 """
-Bulk Cold Calling s Knowledge Base
+Bulk Cold Calling
 Rychlé spuštění 200 callů
 
 Použití:
@@ -17,7 +17,7 @@ load_dotenv()
 
 def main():
     print("=" * 60)
-    print("   🔥 BULK CALLING - Knowledge Base")
+    print("   BULK CALLING")
     print("=" * 60)
     
     # Config
@@ -76,7 +76,6 @@ def main():
     print(f"\n📊 Kontaktů: {len(contacts)}")
     print(f"📞 Twilio: {TWILIO_NUMBER}")
     print(f"🌐 Webhook: {ngrok_url}")
-    print(f"🔥 Režim: Knowledge Base")
     
     # Preview
     print("\nKontakty:")
@@ -107,11 +106,10 @@ def main():
         print(f"[{i}/{len(contacts)}] {name} ({phone})...", end=' ', flush=True)
         
         try:
-            # ✅✅✅ URL ENCODING - FIX TADY! ✅✅✅
+            # URL ENCODING
             params = urlencode({
                 'name': name,
-                'company': company,
-                'use_kb': 'true'
+                'company': company
             })
             
             webhook_url = f"{ngrok_url}/outbound?{params}"
